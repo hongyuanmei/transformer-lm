@@ -40,31 +40,33 @@ def main():
         help='dataset')
     parser.add_argument('--n_layers', default=8, type=int, 
         help='num of layers')
-    parser.add_argument('--d_emb', default=512, type=int, 
-        help='dimension of input word embedding')
     parser.add_argument('--d_model', default=512, type=int, 
         help='dimension of model hidden state')
     parser.add_argument('--n_heads', default=4, type=int, 
         help='num of heads')
     parser.add_argument('--d_ffn', default=1024, type=int, 
         help='dimension of feedforward network')
-    parser.add_argument('--d_softmax', default=512, type=int, 
-        help='dimension of output word embedding')
+    parser.add_argument('--ada', default=1, type=int, choices=[0,1], 
+        help='adaptive input and softmax: 0=no, 1=yes')
+    parser.add_argument('--adacutoff', default='20000,60000', type=str,  
+        help='cutoff list for adaptive input and softmax e.g., 20000,60000')
     parser.add_argument('--tie_emb', default=1, type=int, choices=[0,1], 
         help='tie input and output embeddings: 0=no, 1=yes')
     parser.add_argument('--dropout', default=0.0, type=float,
         help='dropout rate')
-    # parser.add_argument('--opt', default='adam', type=str, choices=['adam', 'noamopt'], 
-    #     help='optimizer')
+    parser.add_argument('--clip_norm', default=0.1, type=float, 
+        help='clip norm of gradients')
+    parser.add_argument('--opt', default='adam', type=str, choices=['adam', 'noamopt'], 
+        help='optimizer')
     parser.add_argument('--lr', default=1e-3, type=float,
         help='learning rate, only used for adam')
-    #parser.add_argument('--weight_decay', default=1e-5, type=float,
-    #    help='weight decay')
+    parser.add_argument('--warmup_step', default=4000, type=int,
+        help='number of warmup steps, only used for noamopt')
     parser.add_argument('--seed', default=12345, type=int, 
         help='random seed')
     parser.add_argument('--cont', default=0, type=int, choices=[0,1], 
         help='continue with saved model and optim: 0=no, 1=yes')
-    parser.add_argument('--root_path', default='../', type=str, 
+    parser.add_argument('--root_path', default='../../', type=str, 
 		help='root path of project')
 
     args = parser.parse_args()
@@ -72,12 +74,6 @@ def main():
     assert args.log_interval % args.update_interval == 0, \
         f"log_interval ({args.log_interval}) is not a multiple of update_interval ({args.update_interval})"
 
-    # n_gpu = torch.cuda.device_count()
-    #if n_gpu > 1 and args.shot == 'all':
-    #    args.train_batch_size = args.train_batch_size * n_gpu
-    #    args.eval_batch_size = args.eval_batch_size * n_gpu
-        
-    # name for Log file and checkpoint
     config = []
     for a in vars(args): 
         if a not in ['root_path', 'cont', 'epochs']: 
@@ -104,7 +100,23 @@ def main():
     # tokenize data 
     rawdata_train = get_rawdata(args.dataset, 'train', args.root_path)
     rawdata_valid = get_rawdata(args.dataset, 'valid', args.root_path)
-    tokenizer = Tokenizer(data=rawdata_train)
+
+    # choose dictionary mode based on data
+    if args.dataset == 'wikitext-103': 
+        tokenizer = Tokenizer(
+            mode='ext_dict', 
+            extdict=os.path.join(args.root_path, f'data/{args.dataset}/dict.txt')
+        )
+    elif args.dataset == 'wikitext-2': 
+        tokenizer = Tokenizer(
+            mode='ext_dict', 
+            extdict=os.path.join(args.root_path, f'data/{args.dataset}/dict.txt')
+        )
+    else: 
+        tokenizer = Tokenizer(
+            mode='use_all', 
+            data=rawdata_train
+        )
 
     # Dataset
     data_train = Dataset(
@@ -122,8 +134,9 @@ def main():
     # Model
     model = TransformerLM(
         tokenizer.get_size(), 
-        args.n_layers, args.d_emb, args.d_model, args.n_heads, 
-        args.d_ffn, args.d_softmax,
+        args.n_layers, args.d_model, args.n_heads, args.d_ffn, 
+        args.ada, sorted([int(x) for x in args.adacutoff.split(',')]), 
+        tokenizer.get_pad(), 
         args.tie_emb, args.dropout
     )
     #modelfile = os.path.join(logfolder, f'model')
@@ -144,7 +157,10 @@ def main():
     loss = NLL(tokenizer.get_pad())
     
     # optimizer 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    if args.opt == 'adam': 
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    else: 
+        raise Exception(f'Unknown optimizer : {args.opt}')
 
     if args.cont == 1: 
         # read saved state of optimizer
