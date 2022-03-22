@@ -66,7 +66,7 @@ def main():
         help='random seed')
     parser.add_argument('--cont', default=0, type=int, choices=[0,1], 
         help='continue with saved model and optim: 0=no, 1=yes')
-    parser.add_argument('--root_path', default='../../', type=str, 
+    parser.add_argument('--root_path', default='..', type=str, 
 		help='root path of project')
 
     args = parser.parse_args()

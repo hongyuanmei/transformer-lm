@@ -6,8 +6,8 @@ import torch.utils.checkpoint
 import math
 
 from utils import clones, attention
-from adainput import AdaptiveInput
 from adasoftmax import AdaptiveSoftmax
+from adaptiveinput import AdaptiveInput
 
 # in-house implementation of Transformer
 # largely reply on Susha Rush annotated transformer: https://nlp.seas.harvard.edu/2018/04/03/attention.html

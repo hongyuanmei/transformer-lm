@@ -229,7 +229,7 @@ class AdaptiveSoftmax(nn.Module):
 def main(): 
 
     import gc
-    from .adainput import AdaptiveInput
+    from adainput import AdaptiveInput
     import random
 
     gc.collect()
