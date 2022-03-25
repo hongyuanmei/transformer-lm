@@ -28,6 +28,7 @@ for data processing
 def get_rawdata(name, split, root): 
     with open(os.path.join(root, f"data/{name}/{split}"), 'r') as f: 
         lines = f.read().split('\n')
+        lines = [x for x in lines if x != '']
     return lines         
 
 def subsequent_mask(size):
