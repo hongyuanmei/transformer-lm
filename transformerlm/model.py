@@ -205,8 +205,9 @@ class Embeddings(nn.Module):
         self.d_model = d_model
     
     def forward(self, x): 
-        # NOTE: not sure if we really need to scale by sqrt(d_model)
-        return self.lut(x) * math.sqrt(self.d_model)
+        # scaling is important 
+        # but we move it out of this class, into forward function
+        return self.lut(x) #* math.sqrt(self.d_model)
     
     def get_weight(self): 
         return self.lut.weight
